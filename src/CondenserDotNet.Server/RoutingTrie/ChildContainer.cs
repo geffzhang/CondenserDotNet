@@ -1,31 +1,37 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Threading;
-using CondenserDotNet.Core;
 using CondenserDotNet.Core.Routing;
+using System;
 
 namespace CondenserDotNet.Server.RoutingTrie
 {
     public class ChildContainer<T>
     {
         private IRoutingStrategy<T> _routingStrategy;
-        
-        public ChildContainer(IDefaultRouting<T> defaultStrategy)
+        private List<T> _services = new List<T>();
+
+        public ChildContainer(IDefaultRouting<T> defaultStrategy) => _routingStrategy = defaultStrategy.Default;
+
+        public int Count => Volatile.Read(ref _services).Count;
+
+        public void SetRoutingStrategy(IRoutingStrategy<T> routingStrategy, Func<List<T>, bool> applies)
         {
-            _routingStrategy = defaultStrategy.Default;
+            var services = Volatile.Read(ref _services);
+
+            if (applies(services))
+            {
+                Interlocked.Exchange(ref _routingStrategy, routingStrategy);
+            }
+
         }
-
-
-        List<T> _services = new List<T>();
-
-        public void SetRoutingStrategy(IRoutingStrategy<T> routingStrategy)
-        {
-            _routingStrategy = routingStrategy;
-        }
+        public override string ToString() => $"Total Services Registered {_services.Count}";
 
         public void AddService(T service)
         {
-            var newServices = new List<T>(Volatile.Read(ref _services));
-            newServices.Add(service);
+            var newServices = new List<T>(Volatile.Read(ref _services))
+            {
+                service
+            };
             Volatile.Write(ref _services, newServices);
         }
 
@@ -45,22 +51,7 @@ namespace CondenserDotNet.Server.RoutingTrie
                 //Simple random selector
                 return _routingStrategy.RouteTo(services);
             }
-            return default(T);
-        }
-
-        public int Count
-        {
-            get
-            {
-                return Volatile.Read(ref _services).Count;
-            }
-        }
-
-        public override string ToString()
-        {
-            return $"Total Services Registered {_services.Count}";
+            return default;
         }
     }
 }
-
-

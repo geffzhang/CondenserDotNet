@@ -13,16 +13,16 @@ namespace ServiceRegistration
     {
         public static void Main(string[] args)
         {
-            var serviceManager = new ServiceManager("TestService", "localhost", 8500);
+            var config = new CondenserDotNet.Configuration.Consul.ConsulRegistry();
+            var ignore = config.AddUpdatingPathAsync("/allkeys");
 
-            serviceManager.AddHttpHealthCheck("/Health",10)
-                .AddApiUrl("/testsample/test3/test2")
-                .AddApiUrl("/testSample/test3/test1")
-                .RegisterServiceAsync().Wait();
-            
+            Console.ReadLine();
+
+            var port = 5000;// ServiceManagerConfig.GetNextAvailablePort();
+                                    
             var host = new WebHostBuilder()
                 .UseKestrel()
-                .UseUrls($"http://*:{serviceManager.ServicePort}")
+                .UseUrls($"http://*:{port}")
                 .UseStartup<Startup>()
                 .Build();
 

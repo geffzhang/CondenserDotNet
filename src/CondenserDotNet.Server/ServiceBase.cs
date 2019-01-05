@@ -1,8 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+using System;
 using System.Net;
 using System.Threading.Tasks;
+using CondenserDotNet.Server.DataContracts;
 using Microsoft.AspNetCore.Http;
 
 namespace CondenserDotNet.Server
@@ -16,9 +15,11 @@ namespace CondenserDotNet.Server
         public string NodeId { get; }
         public abstract Task CallService(HttpContext context);
         public abstract IPEndPoint IpEndPoint { get; }
-
+       
         public virtual void UpdateRoutes(string[] routes)
         {
-        }
+        }       
+
+        public StatsSummary GetSummary() => default;
     }
 }

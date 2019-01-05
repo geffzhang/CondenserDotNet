@@ -1,14 +1,13 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Text;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using System.Net.WebSockets;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Http;
 using System.Threading;
+using CondenserDotNet.Client;
 
 namespace WebsocketSampleServer
 {
@@ -18,10 +17,18 @@ namespace WebsocketSampleServer
         {
             services.AddMvc();
             services.AddRouting();
+            services.AddOptions();
+
+            services.AddConsulServices()
+                .Configure<ServiceManagerConfig>((ops) => ops.ServicePort = 2222);
         }
 
-        public void Configure(IApplicationBuilder app, ILoggerFactory loggerFactory)
+        public void Configure(IApplicationBuilder app, ILoggerFactory loggerFactory, IServiceManager serviceManager)
         {
+            serviceManager.AddHttpHealthCheck("/Health", 10)
+                .AddApiUrl("/testsample/test3/test2")
+                .RegisterServiceAsync().Wait();
+
             app.UseWebSockets();
             app.Use(async (context, next) =>
             {
@@ -53,7 +60,7 @@ namespace WebsocketSampleServer
                     if (content.Equals("ServerClose"))
                     {
                         await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing from Server", CancellationToken.None);
-                        logger.LogDebug($"Sent Frame Close: {WebSocketCloseStatus.NormalClosure} Closing from Server");
+                        logger?.LogDebug($"Sent Frame Close: {WebSocketCloseStatus.NormalClosure} Closing from Server");
                         return;
                     }
                     else if (content.Equals("ServerAbort"))
@@ -63,7 +70,7 @@ namespace WebsocketSampleServer
                 }
 
                 await webSocket.SendAsync(new ArraySegment<byte>(buffer, 0, result.Count), result.MessageType, result.EndOfMessage, CancellationToken.None);
-                logger.LogDebug($"Sent Frame {result.MessageType}: Len={result.Count}, Fin={result.EndOfMessage}: {content}");
+                logger?.LogDebug($"Sent Frame {result.MessageType}: Len={result.Count}, Fin={result.EndOfMessage}: {content}");
 
                 result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
                 LogFrame(logger, result, buffer);
@@ -88,7 +95,7 @@ namespace WebsocketSampleServer
                 }
                 message = $"{frame.MessageType}: Len={frame.Count}, Fin={frame.EndOfMessage}: {content}";
             }
-            logger.LogDebug("Received Frame " + message);
+            logger?.LogDebug("Received Frame " + message);
         }
     }
 }

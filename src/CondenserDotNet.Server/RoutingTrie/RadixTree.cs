@@ -1,9 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using CondenserDotNet.Core;
-using CondenserDotNet.Core.Routing;
 
 namespace CondenserDotNet.Server.RoutingTrie
 {
@@ -11,13 +6,10 @@ namespace CondenserDotNet.Server.RoutingTrie
     {
         private readonly Node<T> _topNode;
         private readonly object _writeLock = new object();
-        private static readonly char[] _routeSplit = new char[] {'/'};
-        private bool _killCase = true;
+        private static readonly char[] _routeSplit = new char[] { '/' };
+        private readonly bool _killCase = true;
 
-        public RadixTree(Func<ChildContainer<T>> factory)
-        {
-            _topNode = new Node<T>(new string[0], "", factory);
-        }
+        public RadixTree(Func<ChildContainer<T>> factory) => _topNode = new Node<T>(new string[0], "", factory);
 
         public Node<T> TopNode => _topNode;
 
@@ -49,7 +41,7 @@ namespace CondenserDotNet.Server.RoutingTrie
                 _topNode.Compress();
             }
         }
-        
+
         public void RemoveService(T service)
         {
             lock (_writeLock)
@@ -70,14 +62,7 @@ namespace CondenserDotNet.Server.RoutingTrie
             }
         }
 
-        public Node<T> GetTopNode()
-        {
-            return _topNode;
-        }
-
-        public int MaxDepth()
-        {
-            return _topNode.MaxDepth() + 1;
-        }
+        public Node<T> GetTopNode() => _topNode;
+        public int MaxDepth() => _topNode.MaxDepth() + 1;
     }
 }

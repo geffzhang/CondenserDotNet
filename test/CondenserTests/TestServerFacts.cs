@@ -1,7 +1,4 @@
-﻿using System;
-using CondenserDotNet.Client;
-using CondenserDotNet.Client.Configuration;
-using CondenserDotNet.Server;
+﻿using CondenserDotNet.Configuration;
 using CondenserTests.Fakes;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -23,17 +20,13 @@ namespace CondenserTests
             await registry.SetKeyAsync("FakeConfig:Setting1", "abc");
             await registry.SetKeyAsync("FakeConfig:Setting2", "def");
 
-            var root = new ConfigurationBuilder()
-                .AddJsonConsul(registry)
-                .Build();
-
             var builder = new WebHostBuilder()
                 .Configure(x => x.UseMvcWithDefaultRoute())
                 .ConfigureServices(x =>
                 {
                     x.AddMvcCore();
                     x.AddOptions();
-                    x.ConfigureReloadable<FakeConfig>(root, registry);
+                    x.ConfigureReloadable<FakeConfig>(registry);
                 });
 
             using (var server = new TestServer(builder))

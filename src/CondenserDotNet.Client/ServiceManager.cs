@@ -1,75 +1,59 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
-using System.Net;
 using System.Net.Http;
-using System.Net.Sockets;
 using System.Threading;
+using System.Threading.Tasks;
 using CondenserDotNet.Client.DataContracts;
 using CondenserDotNet.Core;
+using CondenserDotNet.Core.Consul;
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace CondenserDotNet.Client
 {
     public class ServiceManager : IServiceManager
     {
-        private readonly HttpClient _httpClient;
-        private bool _disposed;
-        private readonly string _serviceName;
-        private readonly string _serviceId;
         private readonly List<string> _supportedUrls = new List<string>();
-        private HealthCheck _httpCheck;
-        private ITtlCheck _ttlCheck;
+        private readonly List<string> _customTags = new List<string>();
         private readonly CancellationTokenSource _cancel = new CancellationTokenSource();
-        private readonly ConfigurationRegistry _config;
-        private readonly ServiceRegistry _services;
-        private readonly LeaderRegistry _leaders;
-        private const int ConsulPort = 8500;
-        private const string LocalHost = "localhost";
+        private bool _disposed;
+        private ITtlCheck _ttlCheck;
+        private Task _registrationTask;
 
-        public ServiceManager(string serviceName) : this(serviceName, $"{serviceName}:{Dns.GetHostName()}", LocalHost, ConsulPort) { }
-        public ServiceManager(string serviceName, string serviceId) : this(serviceName, serviceId, LocalHost, ConsulPort) { }
-        public ServiceManager(string serviceName, string agentAddress, int agentPort) : this(serviceName, $"{serviceName}:{Dns.GetHostName()}", agentAddress, agentPort) { }
-        public ServiceManager(string serviceName, string serviceId, string agentAddress, int agentPort)
+        public ServiceManager(IOptions<ServiceManagerConfig> optionsConfig, Func<HttpClient> httpClientFactory = null, ILoggerFactory logFactory = null, IServer server = null, IConsulAclProvider aclProvider = null)
         {
-            _httpClient = new HttpClient { BaseAddress = new Uri($"http://{agentAddress}:{agentPort}") };
-            _serviceId = serviceId;
-            _serviceName = serviceName;
-            _config = new ConfigurationRegistry(this);
-            _services = new ServiceRegistry(_httpClient, Cancelled);
-            _leaders = new LeaderRegistry(this);
-            ServiceAddress = Dns.GetHostName();
-            ServicePort = GetNextAvailablePort();
+            if (optionsConfig.Value.ServicePort == 0 && server == null)
+            {
+                throw new ArgumentOutOfRangeException($"A valid server port needs to be set through either the options or the hosting server");
+            }
+
+            var config = optionsConfig.Value;
+            Logger = logFactory?.CreateLogger<ServiceManager>();
+            Client = httpClientFactory?.Invoke() ?? HttpUtils.CreateClient(aclProvider);
+            config.SetDefaults(server);
+            ServiceId = config.ServiceId;
+            ServiceName = config.ServiceName;
+            ServiceAddress = config.ServiceAddress;
+            ServicePort = config.ServicePort;
         }
 
         public List<string> SupportedUrls => _supportedUrls;
-        public HttpClient Client => _httpClient;
-        public HealthCheck HttpCheck { get { return _httpCheck; } set { _httpCheck = value; } }
-        public DataContracts.Service RegisteredService { get; set; }
-        public IConfigurationRegistry Config => _config;
-        public string ServiceId => _serviceId;
-        public string ServiceName => _serviceName;
+        public List<string> CustomTags => _customTags;
+        public ILogger Logger { get; }
+        public HttpClient Client { get; }
+        public HealthConfiguration HealthConfig { get; private set; } = new HealthConfiguration();
+        public Service RegisteredService { get; set; }
+        public string ServiceId { get; }
+        public string ServiceName { get; }
         public TimeSpan DeregisterIfCriticalAfter { get; set; }
-        public IServiceRegistry Services => _services;
         public bool IsRegistered => RegisteredService != null;
-        public ITtlCheck TtlCheck { get { return _ttlCheck; } set { _ttlCheck = value; } }
-        public string ServiceAddress { get; set; }
-        public int ServicePort { get; set; }
+        public ITtlCheck TtlCheck { get => _ttlCheck; set => _ttlCheck = value; }
+        public string ServiceAddress { get; }
+        public int ServicePort { get; }
         public CancellationToken Cancelled => _cancel.Token;
-        public ILeaderRegistry Leaders => _leaders;
-
-        protected int GetNextAvailablePort()
-        {
-            var l = new TcpListener(IPAddress.Loopback, 0);
-            int port = 0;
-            try
-            {
-                l.Start();
-                port = ((IPEndPoint)l.LocalEndpoint).Port;
-                l.Stop();
-                l.Server.Dispose();
-            }
-            catch { /*Nom nom */}
-            return port;
-        }
+        public string ProtocolSchemeTag { get; set; }
+        public Task RegistrationTask => Volatile.Read(ref _registrationTask);
 
         public void Dispose()
         {
@@ -79,26 +63,24 @@ namespace CondenserDotNet.Client
 
         protected void Dispose(bool disposing)
         {
-            if (_disposed)
-                return;
-
-            if (disposing)
-            {
-            }
+            if (_disposed) return;
             try
             {
                 _cancel.Cancel();
             }
             finally
             {
-                _httpClient.Dispose();
+                Client.Dispose();
                 _disposed = true;
             }
         }
 
-        ~ServiceManager()
+        public bool UpdateRegistrationTask(Task inboundTask)
         {
-            Dispose(false);
+            var originalValue = Interlocked.Exchange(ref _registrationTask, inboundTask);
+            return originalValue == null ? true : false;
         }
+
+        ~ServiceManager() => Dispose(false);
     }
 }

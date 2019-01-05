@@ -1,50 +1,32 @@
-﻿using System;
-using CondenserDotNet.Client;
-using CondenserDotNet.Client.Configuration;
+﻿using CondenserDotNet.Configuration;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Configuration
 {
-    public class Startup : IStartup
+    public class Startup
     {
-        private readonly ServiceManager _manager;
+        private readonly IConfigurationRegistry _registry;
 
-        public Startup(IHostingEnvironment env,
-            ServiceManager manager)
+        public Startup(IConfigurationRegistry registry)
         {
-            _manager = manager;
-
-            var builder = new ConfigurationBuilder()
-                .SetBasePath(env.ContentRootPath)
-                .AddJsonConsul(manager.Config);
-
-            manager.Config
-                .AddUpdatingPathAsync(env.EnvironmentName)
-                .Wait();
-
-            Configuration = builder.Build();
+            _registry = registry;
         }
 
-        public IConfiguration Configuration { get; }
 
-        public void Configure(IApplicationBuilder app)
+        public void Configure(IApplicationBuilder app, IHostingEnvironment env)
         {
             app.UseMvcWithDefaultRoute();
         }
 
-        IServiceProvider IStartup.ConfigureServices(IServiceCollection services)
+        public void ConfigureServices(IServiceCollection services)
         {
-            services.AddMvc();
-            services.AddRouting();
+            services.ConfigureReloadable<ConsulConfig>(_registry);
 
-            services.AddOptions();
-            services.ConfigureReloadable<ConsulConfig>(Configuration, _manager.Config);
-
-            services.AddSingleton(Configuration);
-            return services.BuildServiceProvider();
+            services.AddOptions()
+                .AddRouting()
+                .AddMvc();
         }
     }
 }

@@ -1,21 +1,23 @@
-os: Visual Studio 2017 RC
+os: Visual Studio 2017
 build: off
 
 environment:
   sonarkey:
     secure: dqF6V11A7InHKcyOX6WDGE3oA54yZQm0r9VLio85ndCn2B8d9zVI2mJ3lQdDzO3o
   COVERALLS_REPO_TOKEN:
-    secure: x41DSerLXKgGVbKIokF+zuR3eNRVJXsgJA6j5yggnCB8/TTyYfa/2euNflfGzCot
+    secure: x41DSerLXKgGVbKIokF+zuR3eNRVJXsgJA6j5yggnCB8/TTyYfa/2euNflfGzCot   
 
 install:
-  - cmd: curl -fsS -o consul.zip https://releases.hashicorp.com/consul/0.7.2/consul_0.7.2_windows_amd64.zip
+  - cmd: curl -fsS -o consul.zip https://releases.hashicorp.com/consul/1.0.2/consul_1.0.2_windows_amd64.zip
   - cmd: 7z x consul.zip -o"C:\Consul" -y > nul
-  - ps: $MyProcess = Start-Process C:\Consul\consul.exe -ArgumentList "agent -server -bootstrap-expect 1 -data-dir C:\Consul\Data -advertise=127.0.0.1" -PassThru
+  - ps: $MyProcess = Start-Process C:\Consul\consul.exe -ArgumentList "agent -server -log-level err -bootstrap-expect 1 -data-dir C:\Consul\Data -advertise=127.0.0.1" -PassThru
 
 before_test:
+  - ECHO %APPVEYOR_REPO_COMMIT_MESSAGE%
   - dotnet --info
+  - VersionNumber.bat
   - dotnet restore
-
+  
 test_script:
   # Build sample
   - dotnet test test/CondenserTests/CondenserTests.csproj
@@ -23,15 +25,26 @@ test_script:
   
 after_test:
   # Build and pack source
-  - ps: iex ((Get-ChildItem ($env:USERPROFILE + '\.nuget\packages\OpenCover'))[0].FullName + '\tools\OpenCover.Console.exe' + ' -register:user -target:".\script\runtests.bat" -searchdirs:".\test\Condenser.Tests.Integration\bin\Debug\netcoreapp1.0;.\test\CondenserTests\bin\debug\netcoreapp1.0" -oldstyle -output:coverage.xml -skipautoprops -returntargetcode -filter:"+[Condenser*]* -[*Test*]*"')
+  - ps: iex ((Get-ChildItem ($env:USERPROFILE + '\.nuget\packages\OpenCover'))[0].FullName + '\tools\OpenCover.Console.exe' + ' -register:user -target:".\script\runtests.bat" -searchdirs:"..\test\Condenser.Tests.Integration\bin\Debug\netcoreapp1.1;..\test\CondenserTests\bin\debug\netcoreapp1.1" -oldstyle -output:coverage.xml -skipautoprops -hideskipped:All -returntargetcode -filter:"+[Condenser*]* -[*Test*]*"')
   - ps: iex ((Get-ChildItem ($env:USERPROFILE + '\.nuget\packages\coveralls.io'))[0].FullName + '\tools\coveralls.net.exe' + ' --opencover coverage.xml')
+  - "SET PATH=C:\\Python34;C:\\Python34\\Scripts;%PATH%"
+  - pip install codecov
+  - codecov -f "coverage.xml"
+  - dotnet build -c Release
   - dotnet pack -c Release src/CondenserDotNet.Client
   - dotnet pack -c Release src/CondenserDotNet.Server
   - dotnet pack -c Release src/CondenserDotNet.Core
-  - dotnet pack -c Release src/CondenserDotNet.Server.WindowsAuthentication
+  - dotnet pack -c Release src/CondenserDotNet.Configuration
+  - dotnet pack -c Release src/CondenserDotNet.Middleware
+  - dotnet pack -c Release src/CondenserDotNet.Server.Extensions
+      
   
 artifacts:
-  path: '**/*.nupkg'
+  - path: '**/*.nupkg'
+    name: packages
+  - path: 'coverage.xml'
+    name: coverage
+    type: zip
 
 deploy:  
 - provider: NuGet

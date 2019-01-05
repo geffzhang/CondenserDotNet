@@ -1,33 +1,32 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Threading;
+using System.Threading.Tasks;
 using CondenserDotNet.Client.DataContracts;
-using CondenserDotNet.Core;
+using Microsoft.Extensions.Logging;
 
 namespace CondenserDotNet.Client
 {
     public interface IServiceManager : IDisposable
     {
-        IConfigurationRegistry Config { get; }
         string ServiceId { get; }
+        Task RegistrationTask { get; }
         string ServiceName { get; }
         TimeSpan DeregisterIfCriticalAfter { get; set; }
-        IServiceRegistry Services { get; }
         bool IsRegistered { get; }
         ITtlCheck TtlCheck { get; set; }
-        string ServiceAddress { get; set; }
-        int ServicePort { get; set; }
+        string ServiceAddress { get; }
+        int ServicePort { get; }
         CancellationToken Cancelled { get; }
-        ILeaderRegistry Leaders { get; }
-
         HttpClient Client { get; }
-
         List<string> SupportedUrls { get; }
+        List<string> CustomTags { get; }
+        HealthConfiguration HealthConfig { get; }
+        Service RegisteredService { get; set; }
+        string ProtocolSchemeTag { get; set; }
+        ILogger Logger { get; }
 
-        HealthCheck HttpCheck { get; set; }
-
-        DataContracts.Service RegisteredService { get; set; }
-
+        bool UpdateRegistrationTask(Task inboundTask);
     }
 }

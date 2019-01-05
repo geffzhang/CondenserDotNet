@@ -1,20 +1,27 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using System;
+using System.Linq;
+using CondenserDotNet.Client.Services;
+using CondenserDotNet.Middleware.TrailingHeaders;
+using Microsoft.AspNetCore.Mvc;
 
 namespace ServiceRegistration.Controllers
 {
-    [Route("api/[controller]")]
+    [Route("test")]
     public class SomeController : Controller
     {
-        [Route("SomeObject")]
-        public IActionResult Get()
+        private IServiceRegistry _registry;
+
+        public SomeController(IServiceRegistry registry)
         {
-            return Ok("Some object");
+            _registry = registry;
         }
 
-        [Route("SomeOtherObject")]
+        [HttpGet()]
         public IActionResult GetOther()
         {
-            return Ok("Some other object");
+            var instance =_registry.GetServiceInstanceAsync("ServiceRegistration");
+            instance.Wait();
+            return Ok(instance.Result.Service);
         }
     }
 }

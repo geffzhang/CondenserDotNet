@@ -8,7 +8,7 @@ namespace CondenserDotNet.Core
     {
         private volatile TaskCompletionSource<T> m_tcs = new TaskCompletionSource<T>();
 
-        public Task<T> WaitAsync() { return m_tcs.Task; }
+        public Task<T> WaitAsync() => m_tcs.Task;
 
         public void Set(T result)
         {
@@ -30,9 +30,7 @@ namespace CondenserDotNet.Core
             while (true)
             {
                 var tcs = m_tcs;
-                if (!tcs.Task.IsCompleted ||
-                    Interlocked.CompareExchange(ref m_tcs, new TaskCompletionSource<T>(), tcs) == tcs)
-                    return;
+                if (!tcs.Task.IsCompleted || Interlocked.CompareExchange(ref m_tcs, new TaskCompletionSource<T>(), tcs) == tcs) return;
             }
         }
     }

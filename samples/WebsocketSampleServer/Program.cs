@@ -1,6 +1,4 @@
-﻿using System;
-using CondenserDotNet.Client;
-using Microsoft.AspNetCore.Hosting;
+﻿using Microsoft.AspNetCore.Hosting;
 
 namespace WebsocketSampleServer
 {
@@ -8,16 +6,9 @@ namespace WebsocketSampleServer
     {
         static void Main(string[] args)
         {
-            var serviceManager = new ServiceManager("TestServiceWebSocket", "localhost", 8500);
-
-            serviceManager.ServicePort = 2222;
-            serviceManager.AddHttpHealthCheck("/Health", 10)
-                .AddApiUrl("/testsample/test3/test2");
-            serviceManager.RegisterServiceAsync().Wait();
-                        
             var host = new WebHostBuilder()
                 .UseKestrel()
-                .UseUrls($"*://*:{serviceManager.ServicePort}")
+                .UseUrls($"*://*:2222")
                 .UseStartup<Startup>()
                 .Build();
 

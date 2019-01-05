@@ -1,14 +1,14 @@
-﻿using System;
+using System;
 using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
-using CondenserDotNet.Core;
 using CondenserDotNet.Core.Routing;
 using CondenserDotNet.Server.RoutingTrie;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Primitives;
+using System.Collections.Generic;
 
 namespace CondenserDotNet.Server.Routes
 {
@@ -16,19 +16,19 @@ namespace CondenserDotNet.Server.Routes
     {
         private readonly IDefaultRouting<IService> _defaultRouting;
         private readonly IServiceProvider _provider;
-        private readonly RoutingData _routingData;
+        private readonly IRouteStore _store;
+        static readonly Func<List<IService>, bool> _externalServicesOnly = services => services.Any(s => s is IConsulService);
 
-        public ChangeRoutingStrategy(RoutingData routingData,
+        public ChangeRoutingStrategy(IRouteStore store,
             IServiceProvider provider,
             IDefaultRouting<IService> defaultRouting)
         {
-            _routingData = routingData;
+            _store = store;
             _provider = provider;
             _defaultRouting = defaultRouting;
         }
 
         public override string[] Routes => new string[]{ CondenserRoutes.Router };
-
         public override IPEndPoint IpEndPoint => throw new NotImplementedException();
 
         public override async Task CallService(HttpContext context)
@@ -43,8 +43,7 @@ namespace CondenserDotNet.Server.Routes
             }
             var queryDictionary = QueryHelpers.ParseQuery(query.Value);
 
-            StringValues values;
-            if (queryDictionary.TryGetValue("strategy", out values))
+            if (queryDictionary.TryGetValue("strategy", out var values))
             {
                 var router = _provider.GetServices<IRoutingStrategy<IService>>()
                     .SingleOrDefault(x => x.Name.Equals(values[0], StringComparison.OrdinalIgnoreCase));
@@ -52,23 +51,23 @@ namespace CondenserDotNet.Server.Routes
                 if (router != null)
                 {
                     _defaultRouting.SetDefault(router);
-                    ReplaceStrategy(_routingData.Tree.TopNode, router);
+                    ReplaceStrategy(_store.GetTree().TopNode, router);
                     await context.Response.WriteAsync("Routing strategy has been replaced");
                 }
             }
             else
             {
                 await context.Response.WriteAsync("No query string args");
-                context.Response.StatusCode = (int) HttpStatusCode.BadRequest;
+                context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
             }
         }
 
         private void ReplaceStrategy(Node<IService> node, IRoutingStrategy<IService> strategy)
-        {
+        {            
             foreach (var child in node.ChildrenNodes)
             {
-                child.Value.Services.SetRoutingStrategy(strategy);
-                ReplaceStrategy(child.Value, strategy);
+                child.Item2.Services.SetRoutingStrategy(strategy, _externalServicesOnly);                
+                ReplaceStrategy(child.Item2, strategy);
             }
         }
     }

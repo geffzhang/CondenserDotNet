@@ -1,4 +1,5 @@
 ﻿using System;
+using CondenserDotNet.Middleware.WindowsAuthentication;
 using Microsoft.AspNetCore.Hosting;
 
 namespace PocWebsocketsSupport
@@ -7,9 +8,16 @@ namespace PocWebsocketsSupport
     {
         static void Main(string[] args)
         {
+            if(args[0] == "pipe")
+            {
+                Startup.UsePipes = true;
+            }
             var host = new WebHostBuilder()
-               .UseKestrel()
-               .UseUrls($"*://*:50000")
+               .UseKestrel( options =>
+               {
+                   //options.UseWindowsAuthentication();
+               })
+               .UseUrls($"*://10.0.76.1:50000")
                .UseStartup<Startup>()
                .Build();
 

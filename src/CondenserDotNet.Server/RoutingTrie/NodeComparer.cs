@@ -1,17 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace CondenserDotNet.Server.RoutingTrie
 {
-    public class NodeComparer: IEqualityComparer<string[]>
+    public class NodeComparer : IEqualityComparer<string[]>
     {
-        private int _compareLength;
-        public NodeComparer(int compareLength)
-        {
-            _compareLength = compareLength;
-        }
+        private readonly int _compareLength;
+
+        public NodeComparer(int compareLength) => _compareLength = compareLength;
 
         public int CompareLength => _compareLength;
 
@@ -22,10 +18,9 @@ namespace CondenserDotNet.Server.RoutingTrie
                 return false;
             }
 
-            for(int i = 0; i < _compareLength; i++)
+            for (var i = 0; i < _compareLength; i++)
             {
-                if(x[i] != y[i])
-                    return false;                
+                if (x[i] != y[i]) return false;
             }
             return true;
         }
@@ -34,8 +29,8 @@ namespace CondenserDotNet.Server.RoutingTrie
         {
             unchecked // Overflow is fine, just wrap
             {
-                int hash = 17;
-                for(int i =0; i < Math.Min(_compareLength,obj.Length); i++)
+                var hash = 17;
+                for (var i = 0; i < Math.Min(_compareLength, obj.Length); i++)
                 {
                     hash = hash * 23 + obj[i].GetHashCode();
                 }

@@ -1,4 +1,4 @@
-language: generic
+﻿language: generic
 
 addons:
   apt:
@@ -21,9 +21,9 @@ before_install:
   - if test "$TRAVIS_OS_NAME" == "osx"; then
       brew install openssl;
       brew link --force openssl;
-      export DOTNET_SDK_URL="https://go.microsoft.com/fwlink/?LinkID=809128";
+      export DOTNET_SDK_URL="https://go.microsoft.com/fwlink/?linkid=843444";
     else
-      export DOTNET_SDK_URL="https://go.microsoft.com/fwlink/?LinkID=809129";
+      export DOTNET_SDK_URL="https://go.microsoft.com/fwlink/?linkid=843450";
     fi
 
   - export DOTNET_INSTALL_DIR="$PWD/.dotnetcli"
@@ -47,7 +47,7 @@ install:
       exit 1;
     fi
   # Restore dependencies
-  - dotnet restore -f https://dotnet.myget.org/F/dotnet-corefxlab/
+  - dotnet restore
 
 before_script:
   # Install consul
@@ -62,7 +62,7 @@ before_script:
 
 script:
   # Start Consul
-  - ./consul agent -server -bootstrap-expect 1 -data-dir /tmp/consul -advertise=127.0.0.1 &
+  - ./consul agent -server -bootstrap-expect 1 -log-level err -data-dir /tmp/consul -advertise=127.0.0.1 &
   # Build sample
-  - dotnet test test/CondenserTests
-  - dotnet test test/Condenser.Tests.Integration
+  - dotnet test test/CondenserTests/CondenserTests.csproj
+  - dotnet test test/Condenser.Tests.Integration/Condenser.Tests.Integration.csproj

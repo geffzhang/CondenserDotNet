@@ -1,15 +1,10 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
-using System.Net;
-using System.Net.Http;
 using System.Threading.Tasks;
 using CondenserDotNet.Client.DataContracts;
-using CondenserDotNet.Client.Internal;
 using CondenserDotNet.Core;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Serialization;
+using Microsoft.Extensions.Logging;
 
 namespace CondenserDotNet.Client
 {
@@ -23,17 +18,16 @@ namespace CondenserDotNet.Client
 
         public static IServiceManager AddHttpHealthCheck(this IServiceManager serviceManager, string url, int intervalInSeconds)
         {
-            HealthCheck check = new HealthCheck()
-            {
-                HTTP = $"{serviceManager.ServiceAddress}:{serviceManager.ServicePort}{url}",
-                Interval = $"{intervalInSeconds}s",
-                Name = $"{serviceManager.ServiceId}:HttpCheck"
-            };
-            if(!check.HTTP.StartsWith("HTTP",StringComparison.OrdinalIgnoreCase))
-            {
-                check.HTTP = "http://" + check.HTTP;
-            }
-            serviceManager.HttpCheck = check;
+            serviceManager.HealthConfig.Url = url;
+            serviceManager.HealthConfig.IntervalInSeconds = intervalInSeconds;
+            return serviceManager;
+        }
+
+        public static IServiceManager UseHttps(this IServiceManager serviceManager, bool ignoreForHealth = true)
+        {
+            serviceManager.ProtocolSchemeTag = "https";
+            serviceManager.HealthConfig.IgnoreTls = ignoreForHealth;
+
             return serviceManager;
         }
 
@@ -45,13 +39,13 @@ namespace CondenserDotNet.Client
 
         public static IServiceManager WithDeregisterIfCriticalAfterMinutes(this IServiceManager serviceManager, int minutes)
         {
-            serviceManager.DeregisterIfCriticalAfter = new TimeSpan(0,minutes,0);
+            serviceManager.DeregisterIfCriticalAfter = new TimeSpan(0, minutes, 0);
             return serviceManager;
         }
 
         public static IServiceManager WithDeregisterIfCriticalAfter(this IServiceManager serviceManager, TimeSpan timeSpan)
         {
-            if(timeSpan.TotalMilliseconds < 0)
+            if (timeSpan.TotalMilliseconds < 0)
             {
                 throw new ArgumentOutOfRangeException("You are required to register with a timespan that is more than zero milliseconds");
             }
@@ -59,9 +53,20 @@ namespace CondenserDotNet.Client
             return serviceManager;
         }
 
-        public static async Task<bool> RegisterServiceAsync(this IServiceManager serviceManager)
+        public static async Task<bool> DeregisterServiceAsync(this IServiceManager serviceManager)
         {
-            DataContracts.Service s = new DataContracts.Service()
+            var result = await serviceManager.Client.PutAsync($"/v1/agent/service/deregister/{serviceManager.ServiceId}", new System.Net.Http.StringContent(string.Empty));
+            if(result.IsSuccessStatusCode)
+            {
+                serviceManager.RegisteredService = null;
+                return true;
+            }
+            return false;
+        }
+
+        public static Task<bool> RegisterServiceAsync(this IServiceManager serviceManager)
+        {
+            var s = new Service()
             {
                 Address = serviceManager.ServiceAddress,
                 EnableTagOverride = false,
@@ -69,12 +74,20 @@ namespace CondenserDotNet.Client
                 Name = serviceManager.ServiceName,
                 Port = serviceManager.ServicePort,
                 Checks = new List<HealthCheck>(),
-                Tags = new List<string>(
-                    serviceManager.SupportedUrls.Select(u => $"urlprefix-{u}"))
+                Tags = new List<string>(serviceManager.SupportedUrls.Select(u => $"urlprefix-{u}"))
             };
-            if (serviceManager.HttpCheck != null)
+
+            var healthCheck = serviceManager.HealthConfig.Build(serviceManager);
+
+            if (serviceManager.ProtocolSchemeTag != null)
             {
-                s.Checks.Add(serviceManager.HttpCheck);
+                s.Tags.Add($"protocolScheme-{serviceManager.ProtocolSchemeTag}");
+            }
+            s.Tags.AddRange(serviceManager.CustomTags);
+
+            if (healthCheck != null)
+            {
+                s.Checks.Add(healthCheck);
             }
             if (serviceManager.TtlCheck != null)
             {
@@ -82,10 +95,10 @@ namespace CondenserDotNet.Client
             }
             if (s.Checks.Count > 1)
             {
-                for (int i = 0; i < s.Checks.Count; i++)
+                for (var i = 0; i < s.Checks.Count; i++)
                 {
                     s.Checks[i].Name = $"service:{s.ID}:{i + 1}";
-                    if (serviceManager.DeregisterIfCriticalAfter != default(TimeSpan))
+                    if (serviceManager.DeregisterIfCriticalAfter != default)
                     {
                         s.Checks[i].DeregisterCriticalServiceAfter = (int)serviceManager.DeregisterIfCriticalAfter.TotalMilliseconds + "ms";
                     }
@@ -94,20 +107,29 @@ namespace CondenserDotNet.Client
             else if (s.Checks.Count == 1)
             {
                 s.Checks[0].Name = $"service:{s.ID}";
-                if (serviceManager.DeregisterIfCriticalAfter != default(TimeSpan))
+                if (serviceManager.DeregisterIfCriticalAfter != default)
                 {
                     s.Checks[0].DeregisterCriticalServiceAfter = (int)serviceManager.DeregisterIfCriticalAfter.TotalMilliseconds + "ms";
                 }
             }
-            var content = HttpUtils.GetStringContent(s);
-            var response = await serviceManager.Client.PutAsync("/v1/agent/service/register", content);
-            if (response.IsSuccessStatusCode)
+
+            var registrationTask = RegisterWithConsul();
+            serviceManager.UpdateRegistrationTask(registrationTask);
+            return registrationTask;
+
+            async Task<bool> RegisterWithConsul()
             {
-                serviceManager.RegisteredService = s;
-                return true;
+                var content = HttpUtils.GetStringContent(s);
+                var response = await serviceManager.Client.PutAsync("/v1/agent/service/register", content);
+                if (response.IsSuccessStatusCode)
+                {
+                    serviceManager.RegisteredService = s;
+                    serviceManager.Logger?.LogInformation("Service with name {name} started at {address} on port {port}", s.Name, s.Address, s.Port);
+                    return true;
+                }
+                serviceManager.RegisteredService = null;
+                return false;
             }
-            serviceManager.RegisteredService = null;
-            return false;
         }
     }
 }

@@ -10,23 +10,23 @@ namespace CondenserDotNet.Server.Routes
 {
     public sealed class RouteSummary : ServiceBase
     {
-        private readonly RoutingData _routingData;
+        private readonly IRouteStore _routeStore;
 
-        public RouteSummary(RoutingData routingData)
+        public RouteSummary(IRouteStore routeStore)
         {
-            _routingData = routingData;
-            Routes = new[] {CondenserRoutes.Summary};
+            _routeStore = routeStore;
+            Routes = new[] { CondenserRoutes.Summary };
         }
 
         public override string[] Routes { get; }
-
+       
         public override IPEndPoint IpEndPoint => throw new NotImplementedException();
 
         public override Task CallService(HttpContext context)
         {
-            context.Response.StatusCode = (int) HttpStatusCode.OK;
+            context.Response.StatusCode = (int)HttpStatusCode.OK;
 
-            object response = _routingData.ServicesWithHealthChecks
+            var response = _routeStore.GetServices()
                 .Select(s => new
                 {
                     Service = s.Key,
@@ -38,9 +38,10 @@ namespace CondenserDotNet.Server.Routes
                             n.SupportedVersions,
                             n.Routes,
                             n.Tags
-                        })
-                });
-            return context.Response.WriteJsonAsync(response);
+                        }).ToList()
+                }).ToList();
+
+           return context.Response.WriteAsync(JsonConvert.SerializeObject(response));
         }
     }
 }

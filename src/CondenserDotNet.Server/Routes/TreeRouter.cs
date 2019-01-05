@@ -17,17 +17,15 @@ namespace CondenserDotNet.Server.Routes
         public TreeRouter(RoutingData routingData)
         {
             _routingData = routingData;
-
-            Routes = new[] { CondenserRoutes.Tree};
+            Routes = new[] { CondenserRoutes.Tree };
         }
 
         public override string[] Routes { get; }
-
         public override IPEndPoint IpEndPoint => throw new NotImplementedException();
-
+        
         public override Task CallService(HttpContext context)
         {
-            context.Response.StatusCode = (int) HttpStatusCode.OK;
+            context.Response.StatusCode = (int)HttpStatusCode.OK;
 
             var nodeDto = new Node();
             MapTo(_routingData.Tree.TopNode, nodeDto);
@@ -40,14 +38,15 @@ namespace CondenserDotNet.Server.Routes
             dto.Prefix = node.Prefix;
             dto.Services = node.Services.ToString();
 
-            var children = new Dictionary<string[], Node>(node.ChildrenNodes.Count);
+            var children = new Dictionary<string, Node>(node.ChildrenNodes.Count);
             dto.Nodes = children;
 
             for (var i = 0; i < node.ChildrenNodes.Count; i++)
             {
                 var nodeDto = new Node();
-                children.Add(node.ChildrenNodes.ElementAt(i).Key, nodeDto);
-                MapTo(node.ChildrenNodes.ElementAt(i).Value, nodeDto);
+                var key = string.Join(",", node.ChildrenNodes.ElementAt(i).Item1);
+                children.Add(key, nodeDto);
+                MapTo(node.ChildrenNodes.ElementAt(i).Item2, nodeDto);
             }
         }
     }

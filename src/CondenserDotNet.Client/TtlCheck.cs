@@ -1,6 +1,3 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
 using CondenserDotNet.Client.DataContracts;
 
@@ -8,9 +5,9 @@ namespace CondenserDotNet.Client
 {
     public class TtlCheck : ITtlCheck
     {
-        private IServiceManager _parentManager;
-        private int _timeToLiveSeconds;
-        private HealthCheck _healthCheck;
+        private readonly IServiceManager _parentManager;
+        private readonly int _timeToLiveSeconds;
+        private readonly HealthCheck _healthCheck;
 
         internal TtlCheck(IServiceManager parentManager, int timeToLiveSeconds)
         {
@@ -26,13 +23,13 @@ namespace CondenserDotNet.Client
 
         public async Task<bool> ReportPassingAsync()
         {
-            if(!_parentManager.IsRegistered)
+            if (!_parentManager.IsRegistered)
             {
                 return false;
             }
             //We are connected so lets report to the server
-            var response = await _parentManager.Client.GetAsync($"/v1/agent/check/pass/service:{_parentManager.ServiceId}");
-            if(response.IsSuccessStatusCode)
+            var response = await _parentManager.Client.PutAsync($"/v1/agent/check/pass/service:{_parentManager.ServiceId}", null);
+            if (response.IsSuccessStatusCode)
             {
                 return true;
             }
@@ -45,7 +42,7 @@ namespace CondenserDotNet.Client
                 return false;
             }
             //We are connected so lets report to the server
-            var response = await _parentManager.Client.GetAsync($"/v1/agent/check/warn/service:{_parentManager.ServiceId}");
+            var response = await _parentManager.Client.PutAsync($"/v1/agent/check/warn/service:{_parentManager.ServiceId}", null);
             if (response.IsSuccessStatusCode)
             {
                 return true;
@@ -59,7 +56,7 @@ namespace CondenserDotNet.Client
                 return false;
             }
             //We are connected so lets report to the server
-            var response = await _parentManager.Client.GetAsync($"/v1/agent/check/fail/service:{_parentManager.ServiceId}");
+            var response = await _parentManager.Client.PutAsync($"/v1/agent/check/fail/service:{_parentManager.ServiceId}", null);
             if (response.IsSuccessStatusCode)
             {
                 return true;

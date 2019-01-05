@@ -1,7 +1,10 @@
 ﻿using System;
 using CondenserDotNet.Client;
+using CondenserDotNet.Configuration;
+using CondenserDotNet.Configuration.Consul;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace Configuration
 {
@@ -9,30 +12,38 @@ namespace Configuration
     {
         public static void Main(string[] args)
         {
-            var serviceManager = new ServiceManager("TestService");
+            var port = ServiceManagerConfig.GetNextAvailablePort();
 
             //This setup would be done outside of this sample.  
             //The environment variable is passed to the startup to bootstrap
             var environment = "Org1";
             Environment
                 .SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", environment);
+           
+            var registry = CondenserConfigBuilder
+                .FromConsul()
+                .WithKeysStoredAsJson()
+                .Build();
 
+            //***Add some config
             var config = new ConsulConfig
             {
                 Setting = "Test"
             };
 
-            serviceManager.Config.SetKeyJsonAsync($"{environment}/ConsulConfig", config)
-                .Wait();
+            registry.SetKeyJsonAsync($"{environment}/ConsulConfig", config).Wait();
+            //***
 
-            //End of set up
+
+            registry.AddUpdatingPathAsync(environment).Wait();
 
             var host = new WebHostBuilder()
                 .UseKestrel()
-                .UseUrls($"http://*:{serviceManager.ServicePort}")
+                .UseUrls($"http://*:{port}")
                 .ConfigureServices(services =>
                 {
-                    services.AddSingleton(serviceManager);
+                    services.AddSingleton<IConfigurationRegistry>(registry);
+                    services.Configure<ServiceManagerConfig>(opts => opts.ServicePort = port);
                 })
                 .UseStartup<Startup>()
                 .Build();
